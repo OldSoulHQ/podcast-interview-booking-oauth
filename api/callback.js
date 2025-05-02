@@ -38,6 +38,25 @@ export default async function handler(req, res) {
     const userInfoData = await userInfoRes.json();
     const user = userInfoData.resource || {};
 
+    // 2.5 Get event types (to find interview + prep event IDs)
+const eventRes = await fetch(`https://api.calendly.com/event_types?user=${user.uri}`, {
+  headers: {
+    Authorization: `Bearer ${tokenData.access_token}`,
+    "Content-Type": "application/json"
+  }
+});
+
+const eventTypeData = await eventRes.json();
+const events = eventTypeData.collection || [];
+
+const interview = events.find(e =>
+  e.name.toLowerCase().includes("interview")
+);
+
+const preProduction = events.find(e =>
+  e.name.toLowerCase().includes("pre") || e.name.toLowerCase().includes("prep")
+);
+      
     // 3. Check Airtable to see if user already exists
     const findRes = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Clients?filterByFormula=Email="${user.email}"`, {
       headers: {
@@ -64,13 +83,15 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         fields: {
-          "Name": user.name,
-          "Email": user.email,
-          "Access Token": tokenData.access_token,
-          "Refresh Token": tokenData.refresh_token,
-          "Expires In": tokenData.expires_in,
-          "Connected At": new Date().toISOString()
-        }
+  "Name": user.name,
+  "Email": user.email,
+  "Access Token": tokenData.access_token,
+  "Refresh Token": tokenData.refresh_token,
+  "Expires In": tokenData.expires_in,
+  "Connected At": new Date().toISOString(),
+  "Interview Event ID": interview?.uri || "",
+  "Pre-Production Event ID": preProduction?.uri || "",
+}
       })
     });
 
