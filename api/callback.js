@@ -19,6 +19,17 @@ export default async function handler(req, res) {
     });
 
     const tokenData = await tokenResponse.json();
+    // Fetch user info using the access token
+const userInfoRes = await fetch("https://api.calendly.com/users/me", {
+  method: "GET",
+  headers: {
+    Authorization: `Bearer ${tokenData.access_token}`,
+    "Content-Type": "application/json"
+  }
+});
+
+const userInfoData = await userInfoRes.json();
+const user = userInfoData.resource || {};
 
     if (!tokenResponse.ok) {
       console.error("❌ Token exchange failed:", tokenData);
