@@ -82,6 +82,13 @@ export default async function handler(req, res) {
     }
 
     console.log("✅ Calendly OAuth + Airtable sync complete");
+    await fetch(process.env.SLACK_WEBHOOK_URL, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    text: `🎉 *${user.name || "A client"}* just connected Calendly!\n📧 ${user.email || "No email found"}`
+  })
+});
     return res.status(200).send("🎉 OAuth successful! Token stored in Airtable.");
   } catch (err) {
     console.error("❌ Unexpected error:", err);
