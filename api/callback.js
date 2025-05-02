@@ -26,7 +26,7 @@ export default async function handler(req, res) {
     }
 
     // Store in Airtable
-    const airtableRes = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/${encodeURIComponent("Calendly Connections")}`, {
+    const airtableRes = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/${encodeURIComponent("Clients")}`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${process.env.AIRTABLE_API_KEY}`,
