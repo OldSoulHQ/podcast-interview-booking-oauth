@@ -6,6 +6,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    // 1. Exchange code for access token
     const tokenResponse = await fetch("https://auth.calendly.com/oauth/token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -19,32 +20,52 @@ export default async function handler(req, res) {
     });
 
     const tokenData = await tokenResponse.json();
-    // Fetch user info using the access token
-const userInfoRes = await fetch("https://api.calendly.com/users/me", {
-  method: "GET",
-  headers: {
-    Authorization: `Bearer ${tokenData.access_token}`,
-    "Content-Type": "application/json"
-  }
-});
-
-const userInfoData = await userInfoRes.json();
-const user = userInfoData.resource || {};
 
     if (!tokenResponse.ok) {
       console.error("❌ Token exchange failed:", tokenData);
       return res.status(500).send(`Token exchange failed: ${tokenData.error || "unknown error"}`);
     }
 
-    // Store in Airtable
-    const airtableRes = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/${encodeURIComponent("Clients")}`, {
-      method: "POST",
+    // 2. Get user info from Calendly
+    const userInfoRes = await fetch("https://api.calendly.com/users/me", {
+      method: "GET",
       headers: {
-        "Authorization": `Bearer ${process.env.AIRTABLE_API_KEY}`,
+        Authorization: `Bearer ${tokenData.access_token}`,
+        "Content-Type": "application/json"
+      }
+    });
+
+    const userInfoData = await userInfoRes.json();
+    const user = userInfoData.resource || {};
+
+    // 3. Check Airtable to see if user already exists
+    const findRes = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Clients?filterByFormula=Email="${user.email}"`, {
+      headers: {
+        Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`,
+        "Content-Type": "application/json"
+      }
+    });
+
+    const findData = await findRes.json();
+    const existingRecord = findData.records && findData.records[0];
+
+    // 4. Build request to either update or create a new record
+    const airtableUrl = existingRecord
+      ? `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Clients/${existingRecord.id}`
+      : `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Clients`;
+
+    const method = existingRecord ? "PATCH" : "POST";
+
+    const airtableRes = await fetch(airtableUrl, {
+      method,
+      headers: {
+        Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
         fields: {
+          "Name": user.name,
+          "Email": user.email,
           "Access Token": tokenData.access_token,
           "Refresh Token": tokenData.refresh_token,
           "Expires In": tokenData.expires_in,
@@ -60,10 +81,10 @@ const user = userInfoData.resource || {};
       return res.status(500).send("Failed to store token in Airtable.");
     }
 
-    console.log("✅ Stored token in Airtable:", airtableData);
-    res.status(200).send("🎉 OAuth successful! Token stored in Airtable.");
+    console.log("✅ Calendly OAuth + Airtable sync complete");
+    return res.status(200).send("🎉 OAuth successful! Token stored in Airtable.");
   } catch (err) {
     console.error("❌ Unexpected error:", err);
-    res.status(500).send("Server error during OAuth process.");
+    return res.status(500).send("Server error during OAuth process.");
   }
 }
