@@ -20,13 +20,37 @@ export default async function handler(req, res) {
 
     const tokenData = await tokenResponse.json();
 
-    if (tokenResponse.ok) {
-      console.log("✅ Calendly OAuth Token:", tokenData);
-      res.status(200).send("🎉 OAuth successful! You can now close this tab.");
-    } else {
+    if (!tokenResponse.ok) {
       console.error("❌ Token exchange failed:", tokenData);
-      res.status(500).send(`Token exchange failed: ${tokenData.error || "unknown error"}`);
+      return res.status(500).send(`Token exchange failed: ${tokenData.error || "unknown error"}`);
     }
+
+    // Store in Airtable
+    const airtableRes = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/${encodeURIComponent("Calendly Connections")}`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.AIRTABLE_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        fields: {
+          "Access Token": tokenData.access_token,
+          "Refresh Token": tokenData.refresh_token,
+          "Expires In": tokenData.expires_in,
+          "Connected At": new Date().toISOString()
+        }
+      })
+    });
+
+    const airtableData = await airtableRes.json();
+
+    if (!airtableRes.ok) {
+      console.error("❌ Airtable error:", airtableData);
+      return res.status(500).send("Failed to store token in Airtable.");
+    }
+
+    console.log("✅ Stored token in Airtable:", airtableData);
+    res.status(200).send("🎉 OAuth successful! Token stored in Airtable.");
   } catch (err) {
     console.error("❌ Unexpected error:", err);
     res.status(500).send("Server error during OAuth process.");
