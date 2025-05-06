@@ -110,6 +110,22 @@ const preProduction = events.find(e =>
     text: `🎉 *${user.name || "A client"}* just connected Calendly!\n📧 ${user.email || "No email found"}`
   })
 });
+
+// 5. Register webhook for new bookings
+await fetch("https://api.calendly.com/webhook_subscriptions", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${tokenData.access_token}`,
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    url: "https://hook.integromat.com/your-make-webhook-url", // ← Replace this with your Make webhook
+    events: ["invitee.created"],
+    organization: user.current_organization,
+    scope: "user"
+  })
+});    
+    
     return res.status(200).send("🎉 OAuth successful! Token stored in Airtable.");
   } catch (err) {
     console.error("❌ Unexpected error:", err);
