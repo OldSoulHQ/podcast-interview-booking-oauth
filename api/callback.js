@@ -37,9 +37,6 @@ export default async function handler(req, res) {
 
     const userInfoData = await userInfoRes.json();
     const user = userInfoData.resource || {};
-
-    console.log("🧠 Calendly user object:", user);
-    console.log("📌 Organization URI:", user.current_organization);
     
     // 2.5 Get event types (to find interview + prep event IDs)
 const eventRes = await fetch(`https://api.calendly.com/event_types?user=${user.uri}`, {
@@ -115,23 +112,37 @@ const preProduction = events.find(e =>
 });
 
 // 5. Register webhook for new bookings
-await fetch("https://api.calendly.com/webhook_subscriptions", {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${tokenData.access_token}`,
-    "Content-Type": "application/json"
-  },
-  body: JSON.stringify({
+try {
+  const webhookPayload = {
     url: "https://hook.us1.make.com/zf9b4sf2rgqxbsxygjfn1w39mbeax52a",
-    events: ["invitee.created"],
-    organization: user.current_organization,
-    scope: "user"
-  })
-});    
-    
-    return res.status(200).send("🎉 OAuth successful! Token stored in Airtable.");
-  } catch (err) {
-    console.error("❌ Unexpected error:", err);
-    return res.status(500).send("Server error during OAuth process.");
+    events: ["invitee.created"]
+  };
+
+  if (user.current_organization) {
+    webhookPayload.organization = user.current_organization;
+    webhookPayload.scope = "organization";
+  } else if (user.uri) {
+    webhookPayload.user = user.uri;
+    webhookPayload.scope = "user";
+  } else {
+    throw new Error("❌ No organization or user URI found for webhook registration.");
   }
+
+  const webhookRes = await fetch("https://api.calendly.com/webhook_subscriptions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${tokenData.access_token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(webhookPayload)
+  });
+
+  const webhookData = await webhookRes.json();
+  if (!webhookRes.ok) {
+    console.error("❌ Webhook registration failed:", webhookData);
+  } else {
+    console.log("✅ Webhook registered:", webhookData);
+  }
+} catch (err) {
+  console.error("❌ Error registering webhook:", err.message || err);
 }
