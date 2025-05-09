@@ -119,7 +119,7 @@ await fetch("https://api.calendly.com/webhook_subscriptions", {
     "Content-Type": "application/json"
   },
   body: JSON.stringify({
-    url: "https://hook.integromat.com/your-make-webhook-url", // ← Replace this with your Make webhook
+    url: "https://hook.us1.make.com/zf9b4sf2rgqxbsxygjfn1w39mbeax52a",
     events: ["invitee.created"],
     organization: user.current_organization,
     scope: "user"
