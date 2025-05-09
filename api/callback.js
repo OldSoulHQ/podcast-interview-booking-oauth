@@ -38,6 +38,9 @@ export default async function handler(req, res) {
     const userInfoData = await userInfoRes.json();
     const user = userInfoData.resource || {};
 
+    console.log("🧠 Calendly user object:", user);
+    console.log("📌 Organization URI:", user.current_organization);
+    
     // 2.5 Get event types (to find interview + prep event IDs)
 const eventRes = await fetch(`https://api.calendly.com/event_types?user=${user.uri}`, {
   headers: {
