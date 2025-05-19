@@ -146,3 +146,6 @@ try {
 } catch (err) {
   console.error("❌ Error registering webhook:", err.message || err);
 }
+  // ✅ Final response and closing
+  res.status(200).send("Calendly setup complete.");
+};
