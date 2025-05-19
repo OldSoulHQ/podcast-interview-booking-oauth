@@ -1,4 +1,4 @@
-exports = async function handler(req, res) {
+module.exports = async function handler(req, res) {
   const code = req.query.code;
 
   if (!code) {
@@ -37,26 +37,26 @@ exports = async function handler(req, res) {
 
     const userInfoData = await userInfoRes.json();
     const user = userInfoData.resource || {};
-    
+
     // 2.5 Get event types (to find interview + prep event IDs)
-const eventRes = await fetch(`https://api.calendly.com/event_types?user=${user.uri}`, {
-  headers: {
-    Authorization: `Bearer ${tokenData.access_token}`,
-    "Content-Type": "application/json"
-  }
-});
+    const eventRes = await fetch(`https://api.calendly.com/event_types?user=${user.uri}`, {
+      headers: {
+        Authorization: `Bearer ${tokenData.access_token}`,
+        "Content-Type": "application/json"
+      }
+    });
 
-const eventTypeData = await eventRes.json();
-const events = eventTypeData.collection || [];
+    const eventTypeData = await eventRes.json();
+    const events = eventTypeData.collection || [];
 
-const interview = events.find(e =>
-  e.name.toLowerCase().includes("interview")
-);
+    const interview = events.find(e =>
+      e.name.toLowerCase().includes("interview")
+    );
 
-const preProduction = events.find(e =>
-  e.name.toLowerCase().includes("pre") || e.name.toLowerCase().includes("prep")
-);
-      
+    const preProduction = events.find(e =>
+      e.name.toLowerCase().includes("pre") || e.name.toLowerCase().includes("prep")
+    );
+
     // 3. Check Airtable to see if user already exists
     const findRes = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Clients?filterByFormula=Email="${user.email}"`, {
       headers: {
@@ -83,15 +83,15 @@ const preProduction = events.find(e =>
       },
       body: JSON.stringify({
         fields: {
-  "Name": user.name,
-  "Email": user.email,
-  "Access Token": tokenData.access_token,
-  "Refresh Token": tokenData.refresh_token,
-  "Expires In": tokenData.expires_in,
-  "Connected At": new Date().toISOString(),
-  "Interview Event ID": interview?.uri || "",
-  "Pre-Production Event ID": preProduction?.uri || "",
-}
+          "Name": user.name,
+          "Email": user.email,
+          "Access Token": tokenData.access_token,
+          "Refresh Token": tokenData.refresh_token,
+          "Expires In": tokenData.expires_in,
+          "Connected At": new Date().toISOString(),
+          "Interview Event ID": interview?.uri || "",
+          "Pre-Production Event ID": preProduction?.uri || "",
+        }
       })
     });
 
@@ -103,49 +103,56 @@ const preProduction = events.find(e =>
     }
 
     console.log("✅ Calendly OAuth + Airtable sync complete");
+
     await fetch(process.env.SLACK_WEBHOOK_URL, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    text: `🎉 *${user.name || "A client"}* just connected Calendly!\n📧 ${user.email || "No email found"}`
-  })
-});
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: `🎉 *${user.name || "A client"}* just connected Calendly!\n📧 ${user.email || "No email found"}`
+      })
+    });
 
-// 5. Register webhook for new bookings
-try {
-  const webhookPayload = {
-    url: "https://hook.us1.make.com/zf9b4sf2rgqxbsxygjfn1w39mbeax52a",
-    events: ["invitee.created"]
-  };
+    // 5. Register webhook for new bookings
+    try {
+      const webhookPayload = {
+        url: "https://hook.us1.make.com/zf9b4sf2rgqxbsxygjfn1w39mbeax52a",
+        events: ["invitee.created"]
+      };
 
-  if (user.current_organization) {
-    webhookPayload.organization = user.current_organization;
-    webhookPayload.scope = "organization";
-  } else if (user.uri) {
-    webhookPayload.user = user.uri;
-    webhookPayload.scope = "user";
-  } else {
-    throw new Error("❌ No organization or user URI found for webhook registration.");
+      if (user.current_organization) {
+        webhookPayload.organization = user.current_organization;
+        webhookPayload.scope = "organization";
+      } else if (user.uri) {
+        webhookPayload.user = user.uri;
+        webhookPayload.scope = "user";
+      } else {
+        throw new Error("❌ No organization or user URI found for webhook registration.");
+      }
+
+      const webhookRes = await fetch("https://api.calendly.com/webhook_subscriptions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${tokenData.access_token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(webhookPayload)
+      });
+
+      const webhookData = await webhookRes.json();
+      if (!webhookRes.ok) {
+        console.error("❌ Webhook registration failed:", webhookData);
+      } else {
+        console.log("✅ Webhook registered:", webhookData);
+      }
+    } catch (err) {
+      console.error("❌ Error registering webhook:", err.message || err);
+    }
+
+    // ✅ Final response
+    res.status(200).send("Calendly setup complete.");
+
+  } catch (err) {
+    console.error("❌ Outer error caught:", err.message || err);
+    res.status(500).send("Internal Server Error during Calendly setup.");
   }
-
-  const webhookRes = await fetch("https://api.calendly.com/webhook_subscriptions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${tokenData.access_token}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(webhookPayload)
-  });
-
-  const webhookData = await webhookRes.json();
-  if (!webhookRes.ok) {
-    console.error("❌ Webhook registration failed:", webhookData);
-  } else {
-    console.log("✅ Webhook registered:", webhookData);
-  }
-} catch (err) {
-  console.error("❌ Error registering webhook:", err.message || err);
-}
-  // ✅ Final response and closing
-  res.status(200).send("Calendly setup complete.");
 };
