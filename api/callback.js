@@ -58,7 +58,7 @@ module.exports = async function handler(req, res) {
     );
 
     // 3. Check Airtable to see if user already exists
-    const findRes = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Clients?filterByFormula=Email="${user.email}"`, {
+    const findRes = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Hosts?filterByFormula=Email="${user.email}"`, {
       headers: {
         Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`,
         "Content-Type": "application/json"
@@ -70,8 +70,8 @@ module.exports = async function handler(req, res) {
 
     // 4. Build request to either update or create a new record
     const airtableUrl = existingRecord
-      ? `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Clients/${existingRecord.id}`
-      : `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Clients`;
+      ? `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Hosts/${existingRecord.id}`
+      : `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Hosts`;
 
     const method = existingRecord ? "PATCH" : "POST";
 
