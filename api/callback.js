@@ -22,7 +22,7 @@ module.exports = async function handler(req, res) {
     const tokenData = await tokenResponse.json();
 
     if (!tokenResponse.ok) {
-      console.error(":x: Token exchange failed:", tokenData);
+      console.error("❌ Token exchange failed:", tokenData);
       return res.status(500).send(`Token exchange failed: ${tokenData.error || "unknown error"}`);
     }
 
@@ -95,17 +95,17 @@ module.exports = async function handler(req, res) {
     const airtableData = await airtableRes.json();
 
     if (!airtableRes.ok) {
-      console.error(":x: Airtable error:", airtableData);
+      console.error("❌ Airtable error:", airtableData);
       return res.status(500).send("Failed to store token in Airtable.");
     }
 
-    console.log(":white_check_mark: Calendly OAuth + Airtable sync complete");
+    console.log("✅ Calendly OAuth + Airtable sync complete");
 
     await fetch(process.env.SLACK_WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        text: `:tada: *${user.name || "A client"}* just connected Calendly!\n:e-mail: ${user.email || "No email found"}`
+        text: `🎉 *${user.name || "A client"}* just connected Calendly!\n📧 ${user.email || "No email found"}`
       })
     });
 
@@ -123,12 +123,14 @@ module.exports = async function handler(req, res) {
         scope = "organization";
         scopeParam = `organization=${user.current_organization}`;
         webhookPayload.organization = user.current_organization;
+        webhookPayload.scope = "organization"; // ✅ REQUIRED
       } else if (user.uri) {
         scope = "user";
         scopeParam = `user=${user.uri}`;
         webhookPayload.user = user.uri;
+        webhookPayload.scope = "user"; // ✅ REQUIRED
       } else {
-        throw new Error(":x: No organization or user URI found for webhook registration.");
+        throw new Error("❌ No organization or user URI found for webhook registration.");
       }
 
       // Check for existing webhook
@@ -146,10 +148,10 @@ module.exports = async function handler(req, res) {
       );
 
       if (existingWebhook) {
-        console.log(":white_check_mark: Webhook already exists, skipping registration.");
+        console.log("✅ Webhook already exists, skipping registration.");
       } else {
         const expirationDate = new Date();
-        expirationDate.setFullYear(expirationDate.getFullYear() + 2);
+        expirationDate.setFullYear(expirationDate.getFullYear() + 2); // ✅ 2 years from now
         webhookPayload.expiration_date = expirationDate.toISOString();
 
         const webhookRes = await fetch("https://api.calendly.com/webhook_subscriptions", {
@@ -163,19 +165,19 @@ module.exports = async function handler(req, res) {
 
         const webhookData = await webhookRes.json();
         if (!webhookRes.ok) {
-          console.error(":x: Webhook registration failed:", webhookData);
+          console.error("❌ Webhook registration failed:", webhookData);
         } else {
-          console.log(":white_check_mark: Webhook registered:", webhookData);
+          console.log("✅ Webhook registered:", webhookData);
         }
       }
     } catch (err) {
-      console.error(":x: Error managing webhook:", err.message || err);
+      console.error("❌ Error managing webhook:", err.message || err);
     }
 
     // ✅ Final success response
     res.status(200).send("Calendly setup complete.");
   } catch (err) {
-    console.error(":x: Outer error caught:", err.message || err);
+    console.error("❌ Outer error caught:", err.message || err);
     res.status(500).send("Internal Server Error during Calendly setup.");
   }
 };
