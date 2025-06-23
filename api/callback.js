@@ -98,36 +98,61 @@ module.exports = async function handler(req, res) {
         url: "https://hook.us1.make.com/zf9b4sf2rgqxbsxygjfn1w39mbeax52a",
         events: ["invitee.created"]
       };
+    
+      // Determine scope and identifier
+      let scope = "";
+      let scopeParam = "";
       if (user.current_organization) {
+        scope = "organization";
+        scopeParam = `organization=${user.current_organization}`;
         webhookPayload.organization = user.current_organization;
-        webhookPayload.scope = "organization";
       } else if (user.uri) {
+        scope = "user";
+        scopeParam = `user=${user.uri}`;
         webhookPayload.user = user.uri;
-        webhookPayload.scope = "user";
       } else {
         throw new Error(":x: No organization or user URI found for webhook registration.");
       }
-      const webhookRes = await fetch("https://api.calendly.com/webhook_subscriptions", {
-        method: "POST",
+    
+      // Step 1: Check existing webhooks
+      const existingHooksRes = await fetch(`https://api.calendly.com/webhook_subscriptions?scope=${scope}&${scopeParam}`, {
+        method: "GET",
         headers: {
           Authorization: `Bearer ${tokenData.access_token}`,
           "Content-Type": "application/json"
-        },
-        body: JSON.stringify(webhookPayload)
+        }
       });
-      const webhookData = await webhookRes.json();
-      if (!webhookRes.ok) {
-        console.error(":x: Webhook registration failed:", webhookData);
+    
+      const existingHooksData = await existingHooksRes.json();
+      const existingWebhook = (existingHooksData.collection || []).find(hook =>
+        hook.url === webhookPayload.url
+      );
+    
+      if (existingWebhook) {
+        console.log(":white_check_mark: Webhook already exists, skipping registration.");
       } else {
-        console.log(":white_check_mark: Webhook registered:", webhookData);
+        // Step 2: Register a new webhook with expiration (2 years from now)
+        const expirationDate = new Date();
+        expirationDate.setFullYear(expirationDate.getFullYear() + 2);
+        webhookPayload.expiration_date = expirationDate.toISOString();
+    
+        const webhookRes = await fetch("https://api.calendly.com/webhook_subscriptions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${tokenData.access_token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(webhookPayload)
+        });
+    
+        const webhookData = await webhookRes.json();
+        if (!webhookRes.ok) {
+          console.error(":x: Webhook registration failed:", webhookData);
+        } else {
+          console.log(":white_check_mark: Webhook registered:", webhookData);
+        }
       }
     } catch (err) {
-      console.error(":x: Error registering webhook:", err.message || err);
+      console.error(":x: Error managing webhook:", err.message || err);
     }
-    // :white_check_mark: Final response
-    res.status(200).send("Calendly setup complete.");
-  } catch (err) {
-    console.error(":x: Outer error caught:", err.message || err);
-    res.status(500).send("Internal Server Error during Calendly setup.");
-  }
 };
