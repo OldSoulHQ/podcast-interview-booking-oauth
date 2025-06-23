@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/refresh-tokens.js": {
+      "schedule": "0 */4 * * *"  // Runs every 4 hours
+    }
+  }
+}
