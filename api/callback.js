@@ -1,8 +1,10 @@
 module.exports = async function handler(req, res) {
   const code = req.query.code;
+
   if (!code) {
     return res.status(400).send("Missing 'code' from Calendly redirect.");
   }
+
   try {
     // 1. Exchange code for access token
     const tokenResponse = await fetch("https://auth.calendly.com/oauth/token", {
@@ -16,11 +18,14 @@ module.exports = async function handler(req, res) {
         code: code
       })
     });
+
     const tokenData = await tokenResponse.json();
+
     if (!tokenResponse.ok) {
       console.error(":x: Token exchange failed:", tokenData);
       return res.status(500).send(`Token exchange failed: ${tokenData.error || "unknown error"}`);
     }
+
     // 2. Get user info from Calendly
     const userInfoRes = await fetch("https://api.calendly.com/users/me", {
       method: "GET",
@@ -29,23 +34,26 @@ module.exports = async function handler(req, res) {
         "Content-Type": "application/json"
       }
     });
+
     const userInfoData = await userInfoRes.json();
     const user = userInfoData.resource || {};
-    // 2.5 Get event types (to find interview + prep event IDs)
+
+    // 2.5 Get event types
     const eventRes = await fetch(`https://api.calendly.com/event_types?user=${user.uri}`, {
       headers: {
         Authorization: `Bearer ${tokenData.access_token}`,
         "Content-Type": "application/json"
       }
     });
+
     const eventTypeData = await eventRes.json();
     const events = eventTypeData.collection || [];
-    const interview = events.find(e =>
-      e.name.toLowerCase().includes("interview")
-    );
+
+    const interview = events.find(e => e.name.toLowerCase().includes("interview"));
     const preProduction = events.find(e =>
       e.name.toLowerCase().includes("pre") || e.name.toLowerCase().includes("prep")
     );
+
     // 3. Check Airtable to see if user already exists
     const findRes = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Hosts?filterByFormula=Email="${user.email}"`, {
       headers: {
@@ -53,13 +61,17 @@ module.exports = async function handler(req, res) {
         "Content-Type": "application/json"
       }
     });
+
     const findData = await findRes.json();
     const existingRecord = findData.records && findData.records[0];
-    // 4. Build request to either update or create a new record
+
+    // 4. Create or update Airtable record
     const airtableUrl = existingRecord
       ? `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Hosts/${existingRecord.id}`
       : `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Hosts`;
+
     const method = existingRecord ? "PATCH" : "POST";
+
     const airtableRes = await fetch(airtableUrl, {
       method,
       headers: {
@@ -75,16 +87,20 @@ module.exports = async function handler(req, res) {
           "Expires In": tokenData.expires_in,
           "Connected At": new Date().toISOString(),
           "Interview Event ID": interview?.uri || "",
-          "Pre-Production Event ID": preProduction?.uri || "",
+          "Pre-Production Event ID": preProduction?.uri || ""
         }
       })
     });
+
     const airtableData = await airtableRes.json();
+
     if (!airtableRes.ok) {
       console.error(":x: Airtable error:", airtableData);
       return res.status(500).send("Failed to store token in Airtable.");
     }
+
     console.log(":white_check_mark: Calendly OAuth + Airtable sync complete");
+
     await fetch(process.env.SLACK_WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -92,16 +108,17 @@ module.exports = async function handler(req, res) {
         text: `:tada: *${user.name || "A client"}* just connected Calendly!\n:e-mail: ${user.email || "No email found"}`
       })
     });
-    // 5. Register webhook for new bookings
+
+    // 5. Register webhook (with 2-year expiration)
     try {
       const webhookPayload = {
         url: "https://hook.us1.make.com/zf9b4sf2rgqxbsxygjfn1w39mbeax52a",
         events: ["invitee.created"]
       };
-    
-      // Determine scope and identifier
+
       let scope = "";
       let scopeParam = "";
+
       if (user.current_organization) {
         scope = "organization";
         scopeParam = `organization=${user.current_organization}`;
@@ -113,8 +130,8 @@ module.exports = async function handler(req, res) {
       } else {
         throw new Error(":x: No organization or user URI found for webhook registration.");
       }
-    
-      // Step 1: Check existing webhooks
+
+      // Check for existing webhook
       const existingHooksRes = await fetch(`https://api.calendly.com/webhook_subscriptions?scope=${scope}&${scopeParam}`, {
         method: "GET",
         headers: {
@@ -122,20 +139,19 @@ module.exports = async function handler(req, res) {
           "Content-Type": "application/json"
         }
       });
-    
+
       const existingHooksData = await existingHooksRes.json();
       const existingWebhook = (existingHooksData.collection || []).find(hook =>
         hook.url === webhookPayload.url
       );
-    
+
       if (existingWebhook) {
         console.log(":white_check_mark: Webhook already exists, skipping registration.");
       } else {
-        // Step 2: Register a new webhook with expiration (2 years from now)
         const expirationDate = new Date();
         expirationDate.setFullYear(expirationDate.getFullYear() + 2);
         webhookPayload.expiration_date = expirationDate.toISOString();
-    
+
         const webhookRes = await fetch("https://api.calendly.com/webhook_subscriptions", {
           method: "POST",
           headers: {
@@ -144,7 +160,7 @@ module.exports = async function handler(req, res) {
           },
           body: JSON.stringify(webhookPayload)
         });
-    
+
         const webhookData = await webhookRes.json();
         if (!webhookRes.ok) {
           console.error(":x: Webhook registration failed:", webhookData);
@@ -155,4 +171,11 @@ module.exports = async function handler(req, res) {
     } catch (err) {
       console.error(":x: Error managing webhook:", err.message || err);
     }
+
+    // ✅ Final success response
+    res.status(200).send("Calendly setup complete.");
+  } catch (err) {
+    console.error(":x: Outer error caught:", err.message || err);
+    res.status(500).send("Internal Server Error during Calendly setup.");
+  }
 };
