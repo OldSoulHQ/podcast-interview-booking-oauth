@@ -121,7 +121,7 @@ module.exports = async function handler(req, res) {
       console.log(`🔍 Scope Type: ${scopeType}`);
       
       const webhookPayload = {
-        url: `https://hook.us1.make.com/zf9b4sf2rgqxbsxygjfn1w39mbeax52a?user=${encodeURIComponent(identifier)}`,
+        url: `https://hook.us1.make.com/zf9b4sf2rgqxbsxygjfn1w39mbeax52a?${scopeType}=${encodeURIComponent(identifier)}`,
         events: ["invitee.created"],
         expiration_date: expirationDate.toISOString()
       };
