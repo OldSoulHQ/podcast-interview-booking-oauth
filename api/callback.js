@@ -117,6 +117,9 @@ module.exports = async function handler(req, res) {
       const identifier = user.current_organization || user.uri;
       const scopeType = user.current_organization ? 'organization' : 'user';
       
+      console.log(`🔗 Webhook Identifier: ${identifier}`);
+      console.log(`🔍 Scope Type: ${scopeType}`);
+      
       const webhookPayload = {
         url: `https://hook.us1.make.com/zf9b4sf2rgqxbsxygjfn1w39mbeax52a?user=${encodeURIComponent(identifier)}`,
         events: ["invitee.created"],
