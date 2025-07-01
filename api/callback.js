@@ -114,8 +114,11 @@ module.exports = async function handler(req, res) {
       const expirationDate = new Date();
       expirationDate.setFullYear(expirationDate.getFullYear() + 2);
 
+      const identifier = user.current_organization || user.uri;
+      const scopeType = user.current_organization ? 'organization' : 'user';
+      
       const webhookPayload = {
-        url: `https://hook.us1.make.com/zf9b4sf2rgqxbsxygjfn1w39mbeax52a?user=${encodeURIComponent(user.uri)}`,
+        url: `https://hook.us1.make.com/zf9b4sf2rgqxbsxygjfn1w39mbeax52a?user=${encodeURIComponent(identifier)}`,
         events: ["invitee.created"],
         expiration_date: expirationDate.toISOString()
       };
